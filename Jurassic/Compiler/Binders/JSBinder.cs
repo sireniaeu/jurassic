@@ -279,11 +279,27 @@ namespace Jurassic.Compiler
                 EmitConversion.ToInteger(il, PrimitiveTypeUtilities.ToPrimitiveType(fromType));
             else if (typeof(ObjectInstance).IsAssignableFrom(toType))
             {
-                EmitConversion.Convert(il, PrimitiveTypeUtilities.ToPrimitiveType(fromType), PrimitiveType.Object);
-                if (toType != typeof(ObjectInstance))
+                if (toType == typeof(ObjectInstance))
                 {
-                    // Convert to null if the from type isn't compatible with the to type.
-                    // For example, if the target type is FunctionInstance and the from type is ArrayInstance, then pass null.
+                    // Generic ObjectInstance: wrapping primitives in their JS equivalents is correct.
+                    EmitConversion.Convert(il, PrimitiveTypeUtilities.ToPrimitiveType(fromType), PrimitiveType.Object);
+                }
+                else
+                {
+                    // Specific ObjectInstance subtype (e.g. FunctionInstance, a CLR-bound class).
+                    // Do NOT wrap the primitive first — for a string argument, that calls
+                    // engine.String.Construct() which accesses InstancePrototype and can crash
+                    // with AccessViolationException. The wrap is also pointless: isinst would
+                    // return null anyway since e.g. StringObject is not FunctionInstance.
+                    // Instead, check the type directly and throw a TypeError if wrong.
+                    var typeCheckPassed = il.CreateLabel();
+                    il.Duplicate();
+                    il.IsInstance(toType);
+                    il.BranchIfNotNull(typeCheckPassed);
+                    il.Pop();
+                    EmitHelpers.EmitThrow(il, ErrorType.TypeError,
+                        string.Format("Expected argument of type {0}.", toType.Name));
+                    il.DefineLabelPosition(typeCheckPassed);
                     il.IsInstance(toType);
                 }
             }
