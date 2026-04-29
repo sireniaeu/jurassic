@@ -286,20 +286,22 @@ namespace Jurassic.Compiler
                 }
                 else
                 {
-                    // Specific ObjectInstance subtype (e.g. FunctionInstance, a CLR-bound class).
-                    // Do NOT wrap the primitive first — for a string argument, that calls
-                    // engine.String.Construct() which accesses InstancePrototype and can crash
-                    // with AccessViolationException. The wrap is also pointless: isinst would
-                    // return null anyway since e.g. StringObject is not FunctionInstance.
-                    // Instead, check the type directly and throw a TypeError if wrong.
+                    // Peter 2026-04-29
+                    // Specific ObjectInstance subtype:
+                    // Don't call EmitConversion.Convert(il... Causes ProcessCorruptedStateExceptions
+                    // Instead, check the type with this code:
                     var typeCheckPassed = il.CreateLabel();
                     il.Duplicate();
                     il.IsInstance(toType);
                     il.BranchIfNotNull(typeCheckPassed);
+                    // If we didn'r branch to typeCheckPassed - throw exception
                     il.Pop();
                     EmitHelpers.EmitThrow(il, ErrorType.TypeError,
                         string.Format("Expected argument of type {0}.", toType.Name));
+
+                    // If branch here - the type checked out OK
                     il.DefineLabelPosition(typeCheckPassed);
+                    // Still need to convert it because the last converted was consumed by BranchIfNotNull
                     il.IsInstance(toType);
                 }
             }
