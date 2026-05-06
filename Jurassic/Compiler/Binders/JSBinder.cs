@@ -294,7 +294,7 @@ namespace Jurassic.Compiler
                     il.Duplicate();
                     il.IsInstance(toType);
                     il.BranchIfNotNull(typeCheckPassed);
-                    // If we didn'r branch to typeCheckPassed - throw exception
+                    // If we didn't branch to typeCheckPassed - throw exception
                     il.Pop();
                     EmitHelpers.EmitThrow(il, ErrorType.TypeError,
                         string.Format("Expected argument of type {0}.", toType.Name));
