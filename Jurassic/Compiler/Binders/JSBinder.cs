@@ -279,11 +279,29 @@ namespace Jurassic.Compiler
                 EmitConversion.ToInteger(il, PrimitiveTypeUtilities.ToPrimitiveType(fromType));
             else if (typeof(ObjectInstance).IsAssignableFrom(toType))
             {
-                EmitConversion.Convert(il, PrimitiveTypeUtilities.ToPrimitiveType(fromType), PrimitiveType.Object);
-                if (toType != typeof(ObjectInstance))
+                if (toType == typeof(ObjectInstance))
                 {
-                    // Convert to null if the from type isn't compatible with the to type.
-                    // For example, if the target type is FunctionInstance and the from type is ArrayInstance, then pass null.
+                    // Generic ObjectInstance: wrapping primitives in their JS equivalents is correct.
+                    EmitConversion.Convert(il, PrimitiveTypeUtilities.ToPrimitiveType(fromType), PrimitiveType.Object);
+                }
+                else
+                {
+                    // Peter 2026-04-29
+                    // Specific ObjectInstance subtype:
+                    // Don't call EmitConversion.Convert(il... Causes ProcessCorruptedStateExceptions
+                    // Instead, check the type with this code:
+                    var typeCheckPassed = il.CreateLabel();
+                    il.Duplicate();
+                    il.IsInstance(toType);
+                    il.BranchIfNotNull(typeCheckPassed);
+                    // If we didn't branch to typeCheckPassed - throw exception
+                    il.Pop();
+                    EmitHelpers.EmitThrow(il, ErrorType.TypeError,
+                        string.Format("Expected argument of type {0}.", toType.Name));
+
+                    // If branch here - the type checked out OK
+                    il.DefineLabelPosition(typeCheckPassed);
+                    // Still need to convert it because the last converted was consumed by BranchIfNotNull
                     il.IsInstance(toType);
                 }
             }
